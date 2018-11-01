@@ -561,6 +561,71 @@
     if ([response isKindOfClass:UNTextInputNotificationResponse.class]) {
         [data setObject:((UNTextInputNotificationResponse*) response).userText
                  forKey:@"text"];
+
+        NSUserDefaults* userDefaults = [NSUserDefaults standardUserDefaults];
+        NSMutableDictionary* reverseMapping = [userDefaults objectForKey:@"reverseMapping"];
+
+        NSString* notificationIdentifier = ((UNTextInputNotificationResponse*) response).notification.request.identifier;
+        NSString* convTarget = [reverseMapping objectForKey:notificationIdentifier];
+        NSString* newMessageInput = ((UNTextInputNotificationResponse*) response).userText;
+
+        NSUserDefaults *data = [NSUserDefaults standardUserDefaults];
+        NSString *apiURL = [data objectForKey:@"apiUrl"];
+        NSString *authToken = [data objectForKey:@"auth-token"];
+
+        NSLog(@"input %@", data);
+        NSLog(@"url %@", apiURL);
+        NSLog(@"auth token %@", authToken);
+        NSLog(@"conv target %@", convTarget);
+
+        // Sending message via Rest API
+        NSDictionary *headers = @{ @"Content-Type": @"application/json",
+                                   @"Authorization": authToken};
+
+        NSDictionary *jsonBodyDict = @{@"target": convTarget, @"messagetext": newMessageInput};
+        NSData *jsonBodyData = [NSJSONSerialization dataWithJSONObject:jsonBodyDict options:kNilOptions error:nil];
+
+        NSMutableURLRequest *requestBinRequest = [NSMutableURLRequest requestWithURL:[NSURL URLWithString: apiURL]
+                                                                         cachePolicy:NSURLRequestUseProtocolCachePolicy
+                                                                     timeoutInterval:10.0];
+        [requestBinRequest setHTTPMethod:@"POST"];
+        [requestBinRequest setAllHTTPHeaderFields:headers];
+        [requestBinRequest setHTTPBody:jsonBodyData];
+
+        NSURLSession *session = [NSURLSession sharedSession];
+        NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:requestBinRequest
+                                                    completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+                                                        if (error) {
+                                                            NSMutableArray* newReplies;
+                                                            if ([userDefaults objectForKey:@"replyMessages"]) {
+                                                                newReplies = [[userDefaults objectForKey:@"replyMessages"] mutableCopy];
+                                                            } else {
+                                                                newReplies = [[NSMutableArray alloc]init];
+                                                            }
+
+                                                            NSLog(@"%@", newReplies);
+
+                                                            NSMutableDictionary* newReply = [[NSMutableDictionary alloc]init];
+                                                            [newReply setValue:convTarget forKey:@"target"];
+                                                            [newReply setValue:newMessageInput forKey:@"message"];
+
+                                                            [newReplies addObject:newReply];
+
+                                                            [userDefaults setObject:newReplies forKey:@"replyMessages"];
+                                                            [userDefaults synchronize];
+                                                        } else {
+                                                            NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *) response;
+                                                            NSLog(@"%@", httpResponse);
+                                                        }
+                                                    }];
+        [dataTask resume];
+
+
+        NSMutableDictionary* mutableReverseMapping = [[userDefaults objectForKey:@"reverseMapping"] mutableCopy];
+        [mutableReverseMapping removeObjectForKey:notificationIdentifier];
+        [userDefaults setObject:mutableReverseMapping forKey:notificationIdentifier];
+        [userDefaults synchronize];
+
     }
 
     [self fireEvent:event notification:toast data:data];
