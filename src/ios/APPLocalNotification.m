@@ -596,12 +596,17 @@
         NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:requestBinRequest
                                                     completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
                                                         if (error) {
+                                                            NSString* repliesString;
                                                             NSMutableArray* newReplies;
                                                             if ([userDefaults objectForKey:@"replyMessages"]) {
-                                                                newReplies = [[userDefaults objectForKey:@"replyMessages"] mutableCopy];
+                                                                repliesString = [userDefaults objectForKey:@"replyMessages"];
                                                             } else {
-                                                                newReplies = [[NSMutableArray alloc]init];
+                                                                repliesString = @"[]";
                                                             }
+
+                                                            NSData* repliesData = [repliesString dataUsingEncoding:NSUTF8StringEncoding];
+                                                            NSError *e;
+                                                            newReplies = [[NSJSONSerialization JSONObjectWithData:repliesData options:nil error:&e] mutableCopy];
 
                                                             NSLog(@"%@", newReplies);
 
@@ -611,7 +616,14 @@
 
                                                             [newReplies addObject:newReply];
 
-                                                            [userDefaults setObject:newReplies forKey:@"replyMessages"];
+                                                             NSLog(@"%@", newReply);
+                                                             NSLog(@"%@", newReplies);
+
+                                                            NSData *jsonData = [NSJSONSerialization dataWithJSONObject:newReplies options:NSJSONWritingSortedKeys error:&error];
+                                                            NSString *jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
+                                                            NSLog(@"%@", jsonString);
+
+                                                            [userDefaults setObject:jsonString forKey:@"replyMessages"];
                                                             [userDefaults synchronize];
                                                         } else {
                                                             NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *) response;
